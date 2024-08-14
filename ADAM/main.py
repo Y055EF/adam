@@ -1,21 +1,33 @@
-from dotenv import load_dotenv
 from openai import OpenAI
 from astra_assistants import patch
 import os
 import json
 import hashlib
-import pandas as pd
-from flask import Flask, request, jsonify
-import time
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
-load_dotenv("C:\\python projects\\astra-swarm\\.env")
-client = patch(OpenAI())
-app = Flask(__name__)
 
+client = patch(OpenAI())
+
+__dirname = os.path.dirname(os.path.abspath(__file__))
+static_folder = os.path.join(__dirname, "../ADAM")
+
+
+def get_static_file(file_name: str) -> str:
+    """
+    Returns the contents of a file in the static folder
+
+    Parameters:
+        file_name (str): Name of the file to read
+
+    Returns:
+        (str): Contents of static/{file_name}
+    """
+    file_path = os.path.join(static_folder, file_name)
+
+    return file_path
 
 prompt = """
 # Automake Customer Service Agent Prompt
@@ -96,7 +108,7 @@ Remember, your goal is to represent Automake professionally and provide exceptio
 """
 
 def create_assistant(client):
-  assistant_file_path = 'C:\\python projects\\astra-swarm\\ADAM\\assistant.json'
+  assistant_file_path = get_static_file('assistant.json')
 
   # If there is an assistant.json file already, then load that assistant
   if os.path.exists(assistant_file_path):
@@ -105,7 +117,8 @@ def create_assistant(client):
       assistant_id = assistant_data['assistant_id']
       print("Loaded existing assistant ID.")
   else:
-    file = client.files.create(file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
+    knowledge_path = get_static_file('knowledge.md')
+    file = client.files.create(file=open(knowledge_path, "rb"),
                                purpose='assistants',
                                embedding_model='embed-english-v3.0')
     vector_store = client.beta.vector_stores.create(
@@ -185,8 +198,8 @@ def get_file_hash(file_path):
         return hashlib.md5(f.read()).hexdigest()
 
 def update_knowlege(client):
-    file_path = 'C:\\python projects\\astra-swarm\\ADAM\\knowledge.md'
-    assistant_file_path = 'C:\\python projects\\astra-swarm\\ADAM\\assistant.json'
+    file_path = get_static_file('knowledge.md')
+    assistant_file_path = get_static_file('assistant.json')
     hash_file = file_path + '.hash'
     current_hash = get_file_hash(file_path)
     stored_hash = ''
@@ -209,7 +222,7 @@ def update_knowlege(client):
                 client.files.delete(file_id)
             
             file = client.files.create(
-                file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
+                file=open(file_path, "rb"),
                 purpose='assistants',
                 embedding_model='embed-english-v3.0'
             )
@@ -233,9 +246,9 @@ def update_knowlege(client):
 
 
 
-
+# change this!!!!!!!!!
 def previous_thread(messenger_id):
-    file_path = './astra-swarm/ADAM/messenger_DB.csv'
+    file_path = get_file_path('messenger_DB.csv')
     dtypes = {
         'messenger_id': str,
         'name': str,
