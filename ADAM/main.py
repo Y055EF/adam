@@ -2,6 +2,7 @@ from openai import OpenAI
 from astra_assistants import patch
 import os
 import json
+from dotenv import load_dotenv
 import hashlib
 import smtplib
 from email.mime.text import MIMEText
@@ -9,7 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from supabase import create_client
 import time
 
-
+load_dotenv(".env")
 
 client = patch(OpenAI())
 
