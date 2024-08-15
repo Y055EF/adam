@@ -14,6 +14,9 @@ client = patch(OpenAI())
 __dirname = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(__dirname, "../ADAM")
 
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supa_client= create_client(url, key)
 
 def get_static_file(file_name: str) -> str:
     """
@@ -115,8 +118,9 @@ def create_assistant(client):
     with open(assistant_file_path, 'r') as file:
       assistant_data = json.load(file)
       assistant_id = assistant_data['assistant_id']
-      print("Loaded existing assistant ID.")
+      context.log("Loaded existing assistant ID.")
   else:
+	console.log("no assistant ID found,creating assitant")
     knowledge_path = get_static_file('knowledge.md')
     file = client.files.create(file=open(knowledge_path, "rb"),
                                purpose='assistants',
@@ -187,7 +191,7 @@ def create_assistant(client):
     # Create a new assistant.json file to load on future runs
     with open(assistant_file_path, 'w') as f:
       json.dump({'assistant_id': assistant.id,'vector_store_id':vector_store.id,'file_id':file.id}, f)
-      print("Created a new assistant and saved the ID.")
+      context.log("Created a new assistant and saved the ID.")
 
     assistant_id = assistant.id
 
@@ -204,15 +208,15 @@ def update_knowlege(client):
     current_hash = get_file_hash(file_path)
     stored_hash = ''
     if not os.path.exists(file_path):
-        print("no KB found")
+        context.log("no KB found")
     if not os.path.exists(assistant_file_path):
-        print("no assistant found")
+        context.log("no assistant found")
 
     if os.path.exists(hash_file):
         with open(hash_file, 'r') as f:
             stored_hash = f.read().strip()
     if current_hash != stored_hash:
-        print("The knowledge.md file has changed, Updating...")    
+        context.log("The knowledge.md file has changed, Updating...")    
         with open(assistant_file_path, 'r') as file:
             assistant_data = json.load(file)
             vector_store_id = assistant_data['vector_store_id']
@@ -238,80 +242,31 @@ def update_knowlege(client):
                 json.dump(assistant_data, file)
             with open(hash_file, 'w') as f:
                 f.write(current_hash)
-            print("knowledge base has been updated")
+            context.log("knowledge base has been updated")
             return vector_store
     else:
-        print("file has not changed")
+        context.log("file has not changed")
         
 
 
 
-# change this!!!!!!!!!
-def previous_thread(messenger_id):
-    file_path = get_file_path('messenger_DB.csv')
-    dtypes = {
-        'messenger_id': str,
-        'name': str,
-        'email': str,
-        'phone': str,
-        'thread_id': str
-    }
-    
-    try:
-        # Try to read the existing CSV file with specified dtypes
-        df = pd.read_csv(file_path, dtype=dtypes)
-    except FileNotFoundError:
-        # If the file doesn't exist, create a new DataFrame with the correct columns and dtypes
-        print("no file found")
+def supa_threads(messenger_id):
+    data=supa_client.table('threads').select('thread_id').eq('messenger_id',messenger_id).execute()
+    if not data.data == []:
+        return data.data[0]['thread_id']
+    else:
         return None
-    
-    # Ensure messenger_id is treated as string
-    messenger_id = str(messenger_id)
-    
-    # Check if the messenger_id already exists
-    if messenger_id in df['messenger_id'].values:
-        return df.loc[df['messenger_id'] == messenger_id, 'thread_id'].iloc[0]
-    return None      
+ 
 
 
 def capture_lead(messenger_id, **kwargs):
-    # File path
-    file_path = './astra-swarm/ADAM/messenger_DB.csv'
-    
-    # Define column data types
-    dtypes = {
-        'messenger_id': str,
-        'name': str,
-        'email': str,
-        'phone': str,
-        'thread_id': str
-    }
-    
-    try:
-        # Try to read the existing CSV file with specified dtypes
-        df = pd.read_csv(file_path, dtype=dtypes)
-    except FileNotFoundError:
-        # If the file doesn't exist, create a new DataFrame with the correct columns and dtypes
-        df = pd.DataFrame(columns=dtypes.keys()).astype(dtypes)
-    
-    # Ensure messenger_id is treated as string
-    messenger_id = str(messenger_id)
-    
-    # Check if the messenger_id already exists
-    if messenger_id in df['messenger_id'].values:
-        # Update the existing row
-        for key, value in kwargs.items():
-            if key in df.columns:
-                df.loc[df['messenger_id'] == messenger_id, key] = str(value)
-    else:
-        # Add a new row
-        new_row = {'messenger_id': messenger_id}
-        new_row.update({k: str(v) for k, v in kwargs.items()})
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    
-    # Save the updated DataFrame to the CSV file
-    df.to_csv(file_path, index=False)
-    print(f"Updated messenger_DB.csv with information for messenger_id: {messenger_id}")
+    supa_client.table('leads').insert({
+        'name': kwargs.get('name'), 
+        'email': kwargs.get('email'), 
+        'phone': kwargs.get('phone'), 
+        'messenger_id': messenger_id
+    }).execute()
+    context.log(f"Updated messenger_DB.csv with information for messenger_id: {messenger_id}")
     return {"status": "success", "message": "lead has been captured successfully"}
 
 def email_supervisor(summary):
@@ -332,37 +287,36 @@ def email_supervisor(summary):
             server.starttls()
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, message.as_string())
-        print("Email sent successfully")
+        context.log("Email sent successfully")
         return {"status": "success", "message": "Email sent successfully"}
     except Exception as e:
-        print(f"Failed to send email: {str(e)}")
+        context.log(f"Failed to send email: {str(e)}")
         return {"status": "error", "message": f"Failed to send email: {str(e)}"}
 
 
-@app.route('/reply', methods=['POST'])
-def reply():
+def main(context):
     assistant_id = create_assistant(client)
-    data = request.json
+	data = json.dumps(context.req.body)
     messenger_id = data.get('messenger_id')
     user_input = data.get('message', '')
 
     if not messenger_id:
-        print("Error: Missing messenger_id")
-        return jsonify({"error": "Missing messenger_id"}), 400
+        context.log("Error: Missing messenger_id")
+        return context.error("Missing messenger_id")
     elif not user_input:
-        print("Error: Missing a message")
-        return jsonify({"error": "Missing a message"}), 400
+        context.log("Error: Missing a message")
+        return context.error("Missing a message"),
     else:
-        print(f"Received message: {user_input} for thread ID: {messenger_id}")
+        context.log(f"Received message: {user_input} for thread ID: {messenger_id}")
     
-    if previous_thread(messenger_id):
-        thread_id = previous_thread(messenger_id)
-        print("previous thread found and loaded")
+    if supa_threads(messenger_id):
+        thread_id = supa_threads(messenger_id)
+        context.log("previous thread found and loaded")
     else:
         thread = client.beta.threads.create()
         thread_id =thread.id
-        capture_lead(messenger_id=messenger_id,thread_id=thread_id)
-        print("id has been saved")
+        supa_client.table('threads').insert({'messenger_id':messenger_id,'thread_id': thread_id}).execute()
+        context.log("id has been saved")
    
     message = client.beta.threads.messages.create(
         thread_id=thread_id,
@@ -376,11 +330,11 @@ def reply():
         if run.status == 'completed':
             break
         elif run.status == 'requires_action':
-            print("using an action")
+            context.log("using an action")
         # Handle the function call
             for tool_call in run.required_action.submit_tool_outputs.tool_calls:
                 if tool_call.function.name == "email_supervisor":
-                    print("trying to email_supervisor")
+                    context.log("trying to email_supervisor")
                     arguments = json.loads(tool_call.function.arguments)
                     output = email_supervisor(arguments["summary"])
                     try:
@@ -390,11 +344,11 @@ def reply():
                                                                         "tool_call_id":tool_call.id,
                                                                         "output":json.dumps(output)
                                                                     }])
-                        print("action succeeded")
+                        context.log("action succeeded")
                     except Exception as e:
-                        print(f"failed to submit tool: {e}")
+                        context.log(f"failed to submit tool: {e}")
                 elif tool_call.function.name == "capture_lead":
-                    print("trying to capture_lead")
+                    context.log("trying to capture_lead")
                     arguments = json.loads(tool_call.function.arguments)
                     output = capture_lead(messenger_id=messenger_id,thread_id=thread_id, name=arguments["name"],phone=arguments["phone"],email=arguments["email"])
                     try:
@@ -404,114 +358,17 @@ def reply():
                                                                         "tool_call_id":tool_call.id,
                                                                         "output":json.dumps(output)
                                                                     }])
-                        print("action succeeded")
+                        context.log("action succeeded")
                     except Exception as e:
-                        print(f"failed to submit tool: {e}")
+                        context.log(f"failed to submit tool: {e}")
         else:
-            print(run.status)
+            context.log(run.status)
         time.sleep(0.5)  # Wait for a second before checking again
 
     # Retrieve and return the latest message from the assistant
     messages = client.beta.threads.messages.list(thread_id=thread_id)
     response = messages.data[0].content[0].text.value
 
-    print(f"Assistant response: {response}")
-    return jsonify({"response": response})
-
-def test(messenger_id,user_input):
-    assistant_id = create_assistant(client)
-
-    if not messenger_id:
-        print("Error: Missing messenger_id")
-        return jsonify({"error": "Missing messenger_id"}), 400
-    elif not user_input:
-        print("Error: Missing a message")
-        return jsonify({"error": "Missing a message"}), 400
-    else:
-        print(f"Received message: {user_input} for thread ID: {messenger_id}")
-    
-    if previous_thread(messenger_id):
-        thread_id = previous_thread(messenger_id)
-        print("previous thread found and loaded")
-    else:
-        thread = client.beta.threads.create()
-        thread_id =thread.id
-        capture_lead(messenger_id=messenger_id,thread_id=thread_id)
-        print("id has been saved")
-   
-    message = client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=user_input
-    )
-
-    
-    while True:
-        run = client.beta.threads.runs.create_and_poll(thread_id=thread_id, assistant_id=assistant_id)
-        if run.status == 'completed':
-            break
-        elif run.status == 'requires_action':
-            print("using an action")
-        # Handle the function call
-            for tool_call in run.required_action.submit_tool_outputs.tool_calls:
-                if tool_call.function.name == "email_supervisor":
-                    print("trying to email_supervisor")
-                    arguments = json.loads(tool_call.function.arguments)
-                    output = email_supervisor(arguments["summary"])
-                    try:
-                        client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
-                                                                    run_id=run.id,
-                                                                    tool_outputs=[{
-                                                                        "tool_call_id":tool_call.id,
-                                                                        "output":json.dumps(output)
-                                                                    }])
-                        print("action succeeded")
-                    except Exception as e:
-                        print(f"failed to submit tool: {e}")
-                elif tool_call.function.name == "capture_lead":
-                    print("trying to capture_lead")
-                    arguments = json.loads(tool_call.function.arguments)
-                    output = capture_lead(messenger_id=messenger_id,thread_id=thread_id, name=arguments["name"],phone=arguments["phone"],email=arguments["email"])
-                    try:
-                        client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
-                                                                    run_id=run.id,
-                                                                    tool_outputs=[{
-                                                                        "tool_call_id":tool_call.id,
-                                                                        "output":json.dumps(output)
-                                                                    }])
-                        print("action succeeded")
-                    except Exception as e:
-                        print(f"failed to submit tool: {e}")
-        else:
-            print(run.status)
-        time.sleep(0.5)  # Wait for a second before checking again
-
-    # Retrieve and return the latest message from the assistant
-    messages = client.beta.threads.messages.list(thread_id=thread_id)
-    response = messages.data[0].content[0].text.value
-
-    print(f"Assistant response: {response}")
-    return response
-
-testing = False
-
-if __name__ == '__main__':
-    t = input('testing?(Y/N):  ')
-
-    update_knowlege(client)
-    if not testing:
-        import uvicorn
-        uvicorn.run(app, host='0.0.0.0', port=8080)
-    else:
-        while True:
-            id = input('id: ')
-            if id == '0':
-                break
-            while True:
-                Uinput = input('You: ')
-                if Uinput == "end":
-                    break
-                else:
-                    test(id, Uinput)
-
+    context.log(f"Assistant response: {response}")
+    return context.res.json({"assitant_response": response})
 
