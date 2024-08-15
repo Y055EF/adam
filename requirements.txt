@@ -2,3 +2,4 @@ astra-assistants==2.0.13
 openai==1.30.4
 httpx==0.26.0
 supabase
+poetry
