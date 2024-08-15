@@ -331,7 +331,7 @@ def email_supervisor(context, summary):
 def main(context):
     update_knowlege(client,context)
     assistant_id = create_assistant(client,context)
-    data = json.load(context.req.body)
+    data = context.req.body
     messenger_id = data.get('messenger_id')
     user_input = data.get('message', '')
 
