@@ -13,8 +13,8 @@ import time
 load_dotenv(".env")
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
-context.log("environment_loaded")
 supa_client= create_client(url, key)
+data=supa_client.table('threads').select('thread_id').eq('messenger_id',messenger_id).execute()
 client = patch(OpenAI())
 
 __dirname = os.path.dirname(os.path.abspath(__file__))
