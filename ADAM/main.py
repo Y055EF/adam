@@ -329,8 +329,6 @@ def email_supervisor(context, summary):
 
 
 def main(context):
-    context.log(context.req)
-    print(context.req)
     update_knowlege(client,context)
     assistant_id = create_assistant(client,context)
     data = json.loads(context.req.body_raw)
