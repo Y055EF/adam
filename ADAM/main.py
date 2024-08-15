@@ -10,12 +10,41 @@ from email.mime.multipart import MIMEMultipart
 from supabase import create_client
 import time
 
-load_dotenv(".env")
+import os
+def throw_if_missing(obj: object, keys: list[str]) -> None:
+    """
+    Throws an error if any of the keys are missing from the object
+
+    Parameters:
+        obj (object): Object to check
+        keys (list[str]): List of keys to check
+
+    Raises:
+        ValueError: If any keys are missing
+    """
+    missing = [key for key in keys if key not in obj or not obj[key]]
+    if missing:
+        raise ValueError(f"Missing required fields: {', '.join(missing)}")
+throw_if_missing(
+    os.environ,
+    [
+        "ASTRA_DB_APPLICATION_TOKEN",
+        "GROQ_API_KEY",
+        "SUPABASE_URL",
+        "SUPABASE_KEY",
+        "COHERE_API_KEY",
+        "SENDER_EMAIL",
+        "SENDER_PASSWORD",
+        "RECEIVER_EMAIL"
+    ],
+)
+client = patch(OpenAI(api_key="fakekey"))
+
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supa_client= create_client(url, key)
-data=supa_client.table('threads').select('thread_id').execute()
-client = patch(OpenAI())
+
+
 
 __dirname = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(__dirname, "../ADAM")
