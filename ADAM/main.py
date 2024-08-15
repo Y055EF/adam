@@ -11,15 +11,15 @@ from supabase import create_client
 import time
 
 load_dotenv(".env")
-
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supa_client= create_client(url, key)
 client = patch(OpenAI())
 
 __dirname = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(__dirname, "../ADAM")
 
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supa_client= create_client(url, key)
+
 
 def get_static_file(file_name: str) -> str:
     """
