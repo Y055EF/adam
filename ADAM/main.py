@@ -329,6 +329,7 @@ def email_supervisor(context, summary):
 
 
 def main(context):
+    context.log(context.req)
     update_knowlege(client,context)
     assistant_id = create_assistant(client,context)
     data = context.req.body
