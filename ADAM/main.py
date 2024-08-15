@@ -270,9 +270,9 @@ def capture_lead(messenger_id, **kwargs):
     return {"status": "success", "message": "lead has been captured successfully"}
 
 def email_supervisor(summary):
-    sender_email = "adamtree010@outlook.com"  # Replace with your ProtonMail address
-    sender_password = "Fuckproton1"  # Replace with your ProtonMail password
-    receiver_email = "youssef.khames67@gmail.com"
+    sender_email = os.environ.get("SENDER_EMAIL")   # Replace with your ProtonMail address
+    sender_password = os.environ.get("SENDER_PASSWORD")  # Replace with your ProtonMail password
+    receiver_email = os.environ.get("RECEIVER_EMAIL")
     
     message = MIMEMultipart()
     message["From"] = sender_email
