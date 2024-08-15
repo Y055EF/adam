@@ -6,6 +6,8 @@ import hashlib
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from supabase import create_client
+import time
 
 
 
@@ -110,98 +112,99 @@ Example: "Hello! I'm Adam. How can I help you today?"
 Remember, your goal is to represent Automake professionally and provide exceptional customer service in every interaction.
 """
 
-def create_assistant(client):
-  assistant_file_path = get_static_file('assistant.json')
+def create_assistant(client,context):
+    assistant_file_path = get_static_file('assistant.json')
 
   # If there is an assistant.json file already, then load that assistant
-  if os.path.exists(assistant_file_path):
-    with open(assistant_file_path, 'r') as file:
-      assistant_data = json.load(file)
-      assistant_id = assistant_data['assistant_id']
-      context.log("Loaded existing assistant ID.")
-  else:
-	console.log("no assistant ID found,creating assitant")
-    knowledge_path = get_static_file('knowledge.md')
-    file = client.files.create(file=open(knowledge_path, "rb"),
-                               purpose='assistants',
-                               embedding_model='embed-english-v3.0')
-    vector_store = client.beta.vector_stores.create(
-            name="knowledge",
-            file_ids=[file.id]
+    if os.path.exists(assistant_file_path):
+        with open(assistant_file_path, 'r') as file:
+            assistant_data = json.load(file)
+        assistant_id = assistant_data['assistant_id']
+        context.log("Loaded existing assistant ID.")
+        return assistant_id
+    else:
+        context.log("no assistant ID found,creating assitant")
+        knowledge_path = get_static_file('knowledge.md')
+        file = client.files.create(file=open(knowledge_path, "rb"),
+                                purpose='assistants',
+                                embedding_model='embed-english-v3.0')
+        vector_store = client.beta.vector_stores.create(
+                name="knowledge",
+                file_ids=[file.id]
+                )
+        assistant = client.beta.assistants.create(
+            name="Adam",
+            instructions=prompt,
+            temperature = 0,
+            model="groq/llama-3.1-70b-versatile",
+            
+            tools=[{
+            "type": "file_search"
+                },
+                {
+                    "type": "function",  # This adds the solar calculator as a tool
+                    "function": {
+                        "name": "email_supervisor",
+                        "description":
+                        "send a summary of the conversation for the supervisor to intervine with customer",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "summary": {
+                                    "type":
+                                    "string",
+                                    "description":
+                                    "summary of the conversation between you and the customer, especialy his pain points and questions, use it when the customer wants to escilate the situation to a the superviser"
+                                },
+                            },
+                            "required": ["summary"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",  # This adds the lead capture as a tool
+                    "function": {
+                        "name": "capture_lead",
+                        "description":
+                        "Capture lead details and save to database.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name of the lead."
+                                },
+                                "phone": {
+                                    "type": "string",
+                                    "description": "Phone number of the lead."
+                                },
+                                "email": {
+                                    "type": "string",
+                                    "description": "email address of the lead."
+                                }
+                            },
+                            "required": ["name", "phone", "email"]
+                        }
+                    }
+                }
+            ],
+            tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
             )
-    assistant = client.beta.assistants.create(
-        name="Adam",
-        instructions=prompt,
-        temperature = 0,
-        model="groq/llama-3.1-70b-versatile",
-        
-        tools=[{
-          "type": "file_search"
-            },
-            {
-                "type": "function",  # This adds the solar calculator as a tool
-                "function": {
-                    "name": "email_supervisor",
-                    "description":
-                    "send a summary of the conversation for the supervisor to intervine with customer",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "summary": {
-                                "type":
-                                "string",
-                                "description":
-                                "summary of the conversation between you and the customer, especialy his pain points and questions, use it when the customer wants to escilate the situation to a the superviser"
-                            },
-                        },
-                        "required": ["summary"]
-                    }
-                }
-            },
-            {
-                "type": "function",  # This adds the lead capture as a tool
-                "function": {
-                    "name": "capture_lead",
-                    "description":
-                    "Capture lead details and save to database.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Name of the lead."
-                            },
-                            "phone": {
-                                "type": "string",
-                                "description": "Phone number of the lead."
-                            },
-                            "email": {
-                                "type": "string",
-                                "description": "email address of the lead."
-                            }
-                        },
-                        "required": ["name", "phone", "email"]
-                    }
-                }
-            }
-        ],
-        tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
-        )
 
-    # Create a new assistant.json file to load on future runs
-    with open(assistant_file_path, 'w') as f:
-      json.dump({'assistant_id': assistant.id,'vector_store_id':vector_store.id,'file_id':file.id}, f)
-      context.log("Created a new assistant and saved the ID.")
+        # Create a new assistant.json file to load on future runs
+        with open(assistant_file_path, 'w') as f:
+            json.dump({'assistant_id': assistant.id,'vector_store_id':vector_store.id,'file_id':file.id}, f)
+        context.log("Created a new assistant and saved the ID.")
 
-    assistant_id = assistant.id
+        assistant_id = assistant.id
 
-  return assistant_id
+    return assistant_id
 
 def get_file_hash(file_path):
     with open(file_path, 'rb') as f:
         return hashlib.md5(f.read()).hexdigest()
 
-def update_knowlege(client):
+def update_knowlege(client,context):
     file_path = get_static_file('knowledge.md')
     assistant_file_path = get_static_file('assistant.json')
     hash_file = file_path + '.hash'
@@ -259,7 +262,7 @@ def supa_threads(messenger_id):
  
 
 
-def capture_lead(messenger_id, **kwargs):
+def capture_lead(context, messenger_id, **kwargs):
     supa_client.table('leads').insert({
         'name': kwargs.get('name'), 
         'email': kwargs.get('email'), 
@@ -269,7 +272,7 @@ def capture_lead(messenger_id, **kwargs):
     context.log(f"Updated messenger_DB.csv with information for messenger_id: {messenger_id}")
     return {"status": "success", "message": "lead has been captured successfully"}
 
-def email_supervisor(summary):
+def email_supervisor(context, summary):
     sender_email = os.environ.get("SENDER_EMAIL")   # Replace with your ProtonMail address
     sender_password = os.environ.get("SENDER_PASSWORD")  # Replace with your ProtonMail password
     receiver_email = os.environ.get("RECEIVER_EMAIL")
@@ -295,8 +298,9 @@ def email_supervisor(summary):
 
 
 def main(context):
-    assistant_id = create_assistant(client)
-	data = json.dumps(context.req.body)
+    update_knowlege(client,context)
+    assistant_id = create_assistant(client,context)
+    data = json.dumps(context.req.body)
     messenger_id = data.get('messenger_id')
     user_input = data.get('message', '')
 
@@ -336,7 +340,7 @@ def main(context):
                 if tool_call.function.name == "email_supervisor":
                     context.log("trying to email_supervisor")
                     arguments = json.loads(tool_call.function.arguments)
-                    output = email_supervisor(arguments["summary"])
+                    output = email_supervisor(context,arguments["summary"])
                     try:
                         client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
                                                                     run_id=run.id,
@@ -350,7 +354,7 @@ def main(context):
                 elif tool_call.function.name == "capture_lead":
                     context.log("trying to capture_lead")
                     arguments = json.loads(tool_call.function.arguments)
-                    output = capture_lead(messenger_id=messenger_id,thread_id=thread_id, name=arguments["name"],phone=arguments["phone"],email=arguments["email"])
+                    output = capture_lead(context,messenger_id=messenger_id,thread_id=thread_id, name=arguments["name"],phone=arguments["phone"],email=arguments["email"])
                     try:
                         client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
                                                                     run_id=run.id,
