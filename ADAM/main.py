@@ -13,6 +13,7 @@ import time
 load_dotenv(".env")
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
+context.log("environment_loaded")
 supa_client= create_client(url, key)
 client = patch(OpenAI())
 
