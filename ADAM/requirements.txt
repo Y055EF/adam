@@ -1,0 +1,8 @@
+langchain-groq
+python-dotenv
+langchain-core
+langchain
+langchain-chroma
+langchain-cohere
+supabase
+flask
