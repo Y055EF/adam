@@ -53,7 +53,9 @@ url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supa_client= create_client(url, key)
 
-
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+RECEIVER_EMAIL = os.getenv("RECEIVER_EMAIL")
 
 __dirname = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(__dirname, "../ADAM")
@@ -125,9 +127,9 @@ def email_supervisor(summary):
     Returns:
         dict: A dictionary containing the status and message of the email sending process.
     """
-    sender_email = "adamtree010@outlook.com"  # Replace with your ProtonMail address
-    sender_password = "Fuckproton1"  # Replace with your ProtonMail password
-    receiver_email = "youssef.khames67@gmail.com"
+    sender_email = SENDER_EMAIL  # Replace with your ProtonMail address
+    sender_password = SENDER_PASSWORD  # Replace with your ProtonMail password
+    receiver_email = RECEIVER_EMAIL
     
     message = MIMEMultipart()
     message["From"] = sender_email
