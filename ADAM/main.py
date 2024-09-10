@@ -75,7 +75,7 @@ def get_static_file(file_name: str) -> str:
     return file_path
 
 def create_db(knowledge_path, db_dir):
-    if not os.path.exists(knowledge_path)
+    if not os.path.exists(knowledge_path):
         print("No KB found")
         return False
     if os.path.exists(db_dir):
@@ -90,7 +90,7 @@ def create_db(knowledge_path, db_dir):
 
 knowledge_path = get_static_file('knowledge.md')
 db_dir = get_static_file('dbs\\knowledge')
-create_db(knowledge_path,db_dir):
+create_db(knowledge_path,db_dir)
 db = Chroma(persist_directory=db_dir, embedding_function=embeddings)
 retriever = db.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
@@ -246,5 +246,5 @@ def main(context):
     chat_history.append(AIMessage(content=result["output"]))
     json_string = json.dumps([{"type": type(msg).__name__, "content": msg.content} for msg in chat_history])
     supa_client.table('leads').update({'chat_history': json_string}).eq('messenger_id',messenger_id).execute()
-    return context.res.json({"assitant_response": response})
+    return context.res.json({"assitant_response": result['output']})
 
