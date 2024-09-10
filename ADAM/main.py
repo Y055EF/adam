@@ -13,7 +13,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from supabase import create_client
-import shutil
 
 import os
 def throw_if_missing(obj: object, keys: list[str]) -> None:
