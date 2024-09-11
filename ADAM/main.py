@@ -75,18 +75,18 @@ def get_static_file(file_name: str) -> str:
 
     return file_path
 
-def create_db(context,knowledge_path, db_dir):
+def create_db(knowledge_path, db_dir):
     if not os.path.exists(knowledge_path):
-        context.log("No KB found")
+        print("No KB found")
         return False
     if os.path.exists(db_dir):
-        context.log('DB exists')
+        print('DB exists')
         return True
     with open(knowledge_path, 'r', encoding='utf-8') as f:
         file = f.read()
     docs = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=400).split_text(file)
     Chroma.from_texts(docs, embeddings, persist_directory=db_dir) 
-    context.log("DB created")
+    print("DB created")
     return True
 
 knowledge_path = get_static_file('knowledge.md')
