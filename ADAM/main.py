@@ -37,8 +37,7 @@ throw_if_missing(
         "SUPABASE_KEY",
         "COHERE_API_KEY",
         "SENDER_EMAIL",
-        "SENDER_PASSWORD",
-        "RECEIVER_EMAIL"
+        "SENDER_PASSWORD"
     ],
 )
 
@@ -129,7 +128,7 @@ def email_supervisor(summary):
     """
     sender_email = SENDER_EMAIL  # Replace with your ProtonMail address
     sender_password = SENDER_PASSWORD  # Replace with your ProtonMail password
-    receiver_email = RECEIVER_EMAIL
+    receiver_email = "academiccommittee1@gmail.com"
     
     message = MIMEMultipart()
     message["From"] = sender_email
