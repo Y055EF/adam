@@ -91,7 +91,7 @@ def create_db(knowledge_path, db_dir):
 
 knowledge_path = get_static_file('knowledge.md')
 db_dir = get_static_file('dbs\\knowledge')
-create_db(context,knowledge_path,db_dir)
+create_db(knowledge_path,db_dir)
 db = Chroma(persist_directory=db_dir, embedding_function=embeddings)
 retriever = db.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
