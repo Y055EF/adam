@@ -187,8 +187,8 @@ def capture_info(name: str , email :str, phone: str, notes: str):
 
 
 tools = [file_search, capture_info, email_supervisor]
-
-with open('C:\\python projects\\autoposter\\prompt.txt', 'r', encoding='utf-8') as f:
+prompt_path = get_static_file('prompt.txt')
+with open(prompt_path, 'r', encoding='utf-8') as f:
     prompt = f.read()
 
 p = ChatPromptTemplate.from_messages(
