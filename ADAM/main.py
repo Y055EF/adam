@@ -75,7 +75,7 @@ def get_static_file(file_name: str) -> str:
 
     return file_path
 
-def create_db(knowledge_path, db_dir):
+def create_db(context,knowledge_path, db_dir):
     if not os.path.exists(knowledge_path):
         context.log("No KB found")
         return False
@@ -143,11 +143,11 @@ def email_supervisor(summary):
             server.starttls()
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, message.as_string())
-        context.log("Email sent successfully")
+        print("Email sent successfully")
         return {"status": "success", "message": "Email sent successfully"}
     except Exception as e:
-        context.log(f"Failed to send email: {str(e)}")
-        return {"status": "error", "message": f"Failed to send email: {str(e)}"}
+        print(f"Failed to send email: {str(e)}")
+        return {"status": "error", "message": f"Failed to send email try again"}
 
 current_messenger_id = None
 
@@ -174,14 +174,14 @@ def capture_info(name: str , email :str, phone: str, notes: str):
     }
     global current_messenger_id
     if current_messenger_id is None:
-        context.log("Error: Missing messenger_id")
+        print("Error: Missing messenger_id")
         return {"status": "error", "message": "Failed to capture info, appologize to the customer and file a complain to the supervisor"}
     try:
         supa_client.table('leads').update(lead_data).eq('messenger_id', current_messenger_id).execute()
-        context.log("Lead captured successfully")
+        print("Lead captured successfully")
         return {"status": "success", "message": "info captured successfully"}
     except Exception as e:
-        context.log("Failed to capture lead, error: " + str(e))
+        print("Failed to capture lead, error: " + str(e))
         return {"status": "error", "message": "Failed to capture info, appologize to the customer and file a complain to the supervisor"}
 
 tools = [file_search, capture_info, email_supervisor]
