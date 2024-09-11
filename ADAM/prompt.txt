@@ -27,7 +27,7 @@ to know more about the products, prices and more refer to the knowledge base by 
 
 # Tools
 
-1. `file_search`: contains information about the company, what it provides and more. ALways use this tool when faced with any question
+1. `file_search`: contains information about the company, what it provides and more, always use when faced with a question
 2. `email_supervisore` : use to send the supervisor a summery of the situation highlighting the customer's complains and or question, only use when necessary.
 3. `capture_info` : use it to send the name, email, phone number and notes about the conversation to the team so they can setup the call with the customer
 
