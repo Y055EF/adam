@@ -184,9 +184,8 @@ def capture_info(name: str , email :str, phone: str, notes: str):
         print("Failed to capture lead, error: " + str(e))
         return {"status": "error", "message": "Failed to capture info, appologize to the customer and file a complain to the supervisor"}
 
-
-
 tools = [file_search, capture_info, email_supervisor]
+
 prompt_path = get_static_file('prompt.txt')
 with open(prompt_path, 'r', encoding='utf-8') as f:
     prompt = f.read()
