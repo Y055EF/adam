@@ -20,18 +20,18 @@ def throw_if_missing(obj: object, keys: list[str]) -> None:
     if missing:
         raise ValueError(f"Missing required fields: {', '.join(missing)}")
 
-async def get_static_file(file_name: str) -> str:
+def get_static_file(file_name: str) -> str:
     file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_name)
     return file_path
 
 @tool
-async def file_search(query: str):
+def file_search(query: str):
     docs = await retriever.ainvoke(query)
     result = "\n\n----------------------------------\n\n".join(doc.page_content for doc in docs)
     return result
 
 @tool
-async def email_supervisor(summary):
+def email_supervisor(summary):
     sender_email = os.getenv("SENDER_EMAIL")
     sender_password = os.getenv("SENDER_PASSWORD")
     receiver_email = "academiccommittee1@gmail.com"
@@ -65,7 +65,7 @@ async def email_supervisor(summary):
 current_messenger_id = None
 
 @tool
-async def capture_info(name: str, email: str, phone: str, notes: str):
+def capture_info(name: str, email: str, phone: str, notes: str):
     lead_data = {
         'name': name,
         'email': email,
@@ -111,7 +111,7 @@ async def setup_environment():
     key: str = os.environ.get("SUPABASE_KEY")
     supa_client = create_client(url, key)
 
-    db_dir = await get_static_file('dbs\\knowledge')
+    db_dir = get_static_file('dbs\\knowledge')
     db = Chroma(persist_directory=db_dir, embedding_function=embeddings)
     retriever = db.as_retriever(search_type="similarity", search_kwargs={"k": 3})
 
