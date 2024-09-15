@@ -1,4 +1,3 @@
-import asyncio
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
@@ -13,59 +12,113 @@ import json
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from supabase import create_client, Client
+from supabase import create_client
+import asyncio
+import os
 
 def throw_if_missing(obj: object, keys: list[str]) -> None:
+    """
+    Throws an error if any of the keys are missing from the object
+
+    Parameters:
+        obj (object): Object to check
+        keys (list[str]): List of keys to check
+
+    Raises:
+        ValueError: If any keys are missing
+    """
     missing = [key for key in keys if key not in obj or not obj[key]]
     if missing:
         raise ValueError(f"Missing required fields: {', '.join(missing)}")
 
+__dirname = os.path.dirname(os.path.abspath(__file__))
+static_folder = __dirname
 def get_static_file(file_name: str) -> str:
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), file_name)
+    """
+    Returns the contents of a file in the static folder
+
+    Parameters:
+        file_name (str): Name of the file to read
+
+    Returns:
+        (str): Contents of static/{file_name}
+    """
+    file_path = os.path.join(static_folder, file_name)
+
     return file_path
+
+current_messenger_id = None
 
 @tool
 def file_search(query: str):
-    docs = await retriever.ainvoke(query)
-    result = "\n\n----------------------------------\n\n".join(doc.page_content for doc in docs)
+    """
+    Searches the knowledge base for a given query.
+
+    Args:
+        query (str): The query to search for in the knowledge base.
+
+    Returns:
+        str: The results of the search query.
+    """
+    docs = retriever.invoke(query)
+    result = ""
+    for i in docs:
+        result = result + i.page_content + "\n\n----------------------------------\n\n"
     return result
+
+
 
 @tool
 def email_supervisor(summary):
-    sender_email = os.getenv("SENDER_EMAIL")
-    sender_password = os.getenv("SENDER_PASSWORD")
+    """
+    Sends an email to the supervisor with a summary of the customer inquiry.
+
+    Args:
+        summary (str): The summary of the customer inquiry.
+
+    Returns:
+        dict: A dictionary containing the status and message of the email sending process.
+    """
+    sender_email = SENDER_EMAIL  # Replace with your ProtonMail address
+    sender_password = SENDER_PASSWORD  # Replace with your ProtonMail password
     receiver_email = "academiccommittee1@gmail.com"
     
     message = MIMEMultipart()
     message["From"] = sender_email
     message["To"] = receiver_email
     message["Subject"] = "Customer Inquiry Summary"
-    message.attach(MIMEText(f"Here's a summary of the customer inquiry:\n\n{summary}", "plain"))
+
+    body = f"Here's a summary of the customer inquiry:\n\n{summary}"
+    message.attach(MIMEText(body, "plain"))
 
     try:
-        async with await asyncio.get_event_loop().create_connection(
-            lambda: asyncio.sslproto.SSLProtocol(
-                asyncio.SubprocessTransport, ssl_protocol_factory
-            ),
-            "smtp-mail.outlook.com",
-            587,
-        ) as conn:
-            server = smtplib.SMTP()
-            server._connect(conn[0], conn[1])
-            await server.starttls()
-            await server.login(sender_email, sender_password)
-            await server.sendmail(sender_email, receiver_email, message.as_string())
-            await server.quit()
+        with smtplib.SMTP("smtp-mail.outlook.com",587) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, message.as_string())
         print("Email sent successfully")
         return {"status": "success", "message": "Email sent successfully"}
     except Exception as e:
         print(f"Failed to send email: {str(e)}")
-        return {"status": "error", "message": "Failed to send email try again"}
+        return {"status": "error", "message": f"Failed to send email try again"}
 
-current_messenger_id = None
+
 
 @tool
-def capture_info(name: str, email: str, phone: str, notes: str):
+def capture_info(name: str , email :str, phone: str, notes: str):
+    """
+    Capture a lead and add it to the database.
+
+    Args:
+        messenger_id (str): The messenger ID of the lead.
+        name (str): Name of the lead.
+        email (str): Email of the lead.
+        phone (str): Phone number of the lead.
+        notes (str): Additional information about the lead.
+
+    Returns:
+        dict: A dictionary containing the status and message of the operation.
+    """
     lead_data = {
         'name': name,
         'email': email,
@@ -75,19 +128,19 @@ def capture_info(name: str, email: str, phone: str, notes: str):
     global current_messenger_id
     if current_messenger_id is None:
         print("Error: Missing messenger_id")
-        return {"status": "error", "message": "Failed to capture info, apologize to the customer and file a complaint to the supervisor"}
+        return {"status": "error", "message": "Failed to capture info, appologize to the customer and file a complain to the supervisor"}
     try:
-        await supa_client.table('leads').update(lead_data).eq('messenger_id', current_messenger_id).execute()
+        supa_client.table('leads').update(lead_data).eq('messenger_id', current_messenger_id).execute()
         print("Lead captured successfully")
         return {"status": "success", "message": "info captured successfully"}
     except Exception as e:
         print("Failed to capture lead, error: " + str(e))
-        return {"status": "error", "message": "Failed to capture info, apologize to the customer and file a complaint to the supervisor"}
+        return {"status": "error", "message": "Failed to capture info, appologize to the customer and file a complain to the supervisor"}
 
-async def setup_environment():
+
+async def setup_environment(context):
+    context.log("setup started")
     global llm, embeddings, supa_client, db, retriever, tools, agent, agent_executor
-
-    load_dotenv()
     throw_if_missing(
         os.environ,
         [
@@ -99,24 +152,35 @@ async def setup_environment():
             "SENDER_PASSWORD"
         ],
     )
-
+    
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-    llm = ChatGroq(api_key=GROQ_API_KEY, model="llama3-groq-70b-8192-tool-use-preview", temperature=0)
-    embeddings = CohereEmbeddings(
+    llm = ChatGroq(api_key=GROQ_API_KEY,model="llama3-groq-70b-8192-tool-use-preview", temperature=0)
+    embeddings = CohereEmbeddings( 
         cohere_api_key=COHERE_API_KEY,
         model="embed-english-v3.0",
     )
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
-    supa_client = create_client(url, key)
-
+    supa_client= create_client(url, key)
+    
+    SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+    SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+    RECEIVER_EMAIL = os.getenv("RECEIVER_EMAIL")
+    context.log("env variables initialized")
+    
+    
+    knowledge_path = get_static_file('knowledge.md')
     db_dir = get_static_file('dbs\\knowledge')
     db = Chroma(persist_directory=db_dir, embedding_function=embeddings)
     retriever = db.as_retriever(search_type="similarity", search_kwargs={"k": 3})
-
+    context.log("knowledge found and loaded")
+    
+    
+    
+    
     tools = [file_search, capture_info, email_supervisor]
-
+    
     prompt= """
     # Role
     
@@ -180,8 +244,7 @@ async def setup_environment():
     
     - use the `file_search` tool whenever answering questions, the `email_supervisor` when facing a complaint or a question you can’t answer and the `capture_info` after the customer gives you both three required information (name, email, phone number) other wise ask the client to give you what’s messing
     """
-
-
+    
     p = ChatPromptTemplate.from_messages(
         [
             ("system", f"{prompt}"),
@@ -190,17 +253,17 @@ async def setup_environment():
             MessagesPlaceholder("agent_scratchpad"),
         ]
     )
-
-    agent = create_openai_tools_agent(llm=llm, tools=tools, prompt=p)
+    
+    agent = create_openai_tools_agent(llm=llm,tools=tools,prompt=p)
     agent_executor = AgentExecutor(agent=agent, tools=tools)
+    context.log("agent initialezed and setup done")
 
-async def process_message(messenger_id: str, user_input: str):
+async def process_message(context, messenger_id: str, user_input: str):
     global current_messenger_id
     current_messenger_id = messenger_id
-    
-    data = await supa_client.table('leads').select('chat_history').eq('messenger_id', messenger_id).execute()
+    data=supa_client.table('leads').select('chat_history').eq('messenger_id',messenger_id).execute()
 
-    if data.data and data.data[0]['chat_history']:
+    if data.data != [] and data.data[0]['chat_history']:
         json_string = data.data[0]['chat_history']
         chat_history = [
             globals()[msg["type"]](content=msg["content"])
@@ -208,28 +271,28 @@ async def process_message(messenger_id: str, user_input: str):
         ]
         if len(chat_history) > 30:
             chat_history = chat_history[2:]
-        print("previous chat history found and loaded")
+        context.log("previous chat history found and loaded")
     else:
         chat_history = []
         json_string = json.dumps([{"type": type(msg).__name__, "content": msg.content} for msg in chat_history])
-        await supa_client.table('leads').insert({'messenger_id': messenger_id, 'chat_history': chat_history}).execute()
-        print("New id has been saved")
-
-    result = await agent_executor.ainvoke(
+        supa_client.table('leads').insert({'messenger_id':messenger_id,'chat_history':chat_history}).execute()
+        context.log("New id has been saved")
+        
+    result = agent_executor.invoke(
         {
             "input": user_input,
             "chat_history": chat_history,
         }
     )
+    context.log("agent responded")
     chat_history.append(HumanMessage(content=user_input))
     chat_history.append(AIMessage(content=result["output"]))
     json_string = json.dumps([{"type": type(msg).__name__, "content": msg.content} for msg in chat_history])
-    await supa_client.table('leads').update({'chat_history': json_string}).eq('messenger_id', messenger_id).execute()
+    supa_client.table('leads').update({'chat_history': json_string}).eq('messenger_id',messenger_id).execute()
     return result['output']
 
 async def main(context):
-    await setup_environment()
-
+    await setup_environment(context)
     data = json.loads(context.req.body_raw)
     messenger_id = data.get('messenger_id')
     user_input = data.get('message', '')
@@ -243,5 +306,5 @@ async def main(context):
     else:
         context.log(f"Received message: ({user_input}) for thread ID: ({messenger_id})")
 
-    assistant_response = await process_message(messenger_id, user_input)
-    return context.res.json({"assistant_response": assistant_response})  # Replace None with appropriate context object when testing locally
+    assistant_response = await process_message(context, messenger_id, user_input)
+    return context.res.json({"assitant_response": assistant_response})
