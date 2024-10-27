@@ -254,6 +254,8 @@ def chat_history(context, messenger_id) -> list:
     data=supa_client.table('leads').select('chat_history').eq('messenger_id',messenger_id).execute()
     if not data.data == [] and data.data[0]['chat_history']:
         chat_history = json.loads(data.data[0]['chat_history'])
+        if len(chat_history) > 12:
+            chat_history.pop(1)
         return chat_history
     else:
         supa_client.table('leads').insert({'messenger_id':messenger_id,'chat_history':"[]"}).execute()
