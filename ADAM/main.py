@@ -26,7 +26,7 @@ def throw_if_missing(obj: object, keys: list[str]) -> None:
     missing = [key for key in keys if key not in obj or not obj[key]]
     if missing:
         raise ValueError(f"Missing required fields: {', '.join(missing)}")
-
+enc = tiktoken.encoding_for_model("gpt-4o")
 __dirname = os.path.dirname(os.path.abspath(__file__))
 static_folder = __dirname
 def get_static_file(file_name: str) -> str:
