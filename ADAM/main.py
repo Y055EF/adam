@@ -9,6 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from supabase import create_client
+import tiktoken
 
 
 def throw_if_missing(obj: object, keys: list[str]) -> None:
@@ -254,20 +255,23 @@ def chat_history(context, messenger_id) -> list:
     data=supa_client.table('leads').select('chat_history').eq('messenger_id',messenger_id).execute()
     if not data.data == [] and data.data[0]['chat_history']:
         chat_history = json.loads(data.data[0]['chat_history'])
-        if len(chat_history) > 12:
+        tokens = enc.encode(data.data[0]['chat_history'])
+        while len(tokens) > 7500:
             chat_history.pop(1)
+            tokens = enc.encode(json.dumps(chat_history))
+            context.log("previous chat history shortened")
+        context.log("previous chat history loaded")
         return chat_history
     else:
         supa_client.table('leads').insert({'messenger_id':messenger_id,'chat_history':"[]"}).execute()
         context.log("New id has been saved")
-        return []
+        return [{"role": "system", "content": prompt}]
 
 
 
 def response(context,messenger_id,input)->str:
 
     convo = chat_history(context,messenger_id)
-    convo.append({"role": "system", "content": prompt})
     convo.append({"role": "user", "content": input})
     response = client.chat.completions.create(
         model=MODEL, # LLM to use
