@@ -250,7 +250,7 @@ def create_assistant(context,client,assistant_file_path):
 
 
 
-def response(context,messenger_id,user_input):
+def response(context,messenger_id,user_input,assistant_id):
     assistant_id = create_assistant(context,client,assistant_path)
     
     if supa_threads(messenger_id):
@@ -330,6 +330,7 @@ def main(context):
             "SENDER_PASSWORD"
         ],
     )
+    assistant_id = create_assistant(context,client,assistant_path)
     update_knowlege(context,client,knowledge_path,assistant_path)
     data = json.loads(context.req.body_raw)
     messenger_id = data.get('messenger_id')
@@ -343,6 +344,6 @@ def main(context):
         return context.error("error", "Missing a message")
     else:
         context.log(f"Received message: ({user_input}) for thread ID: ({messenger_id})")
-    assistant_response = response(context, messenger_id, user_input)
+    assistant_response = response(context, messenger_id, user_input,assistant_id)
     context.log(f"assistant responded: {assistant_response}")
     return context.res.json({"assistant_response": assistant_response})
