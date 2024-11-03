@@ -1,16 +1,30 @@
 import os
-from groq import Groq
-import chromadb
 import json
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
-from langchain_cohere import CohereEmbeddings
+from openai import OpenAI
+import hashlib
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from supabase import create_client
 import tiktoken
+import time
 
+
+static_folder = os.path.dirname(os.path.abspath(__file__))
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supa_client= create_client(url, key)
+client = OpenAI(
+    api_key=os.environ.get("GROQ_API_KEY")
+)
+
+assistant_path=os.path.join(static_folder,"assistant.json")
+model = "gpt-4o-mini-2024-07-18"
+prompt_path = os.path.join(static_folder,"prompt.txt")
+knowledge_path =os.path.join(static_folder,"knowledge.md")
+enc = tiktoken.encoding_for_model("gpt-4o")
+with open(prompt_path, 'r', encoding='utf-8') as f:
+    prompt = f.read()
 
 def throw_if_missing(obj: object, keys: list[str]) -> None:
     """
@@ -26,39 +40,45 @@ def throw_if_missing(obj: object, keys: list[str]) -> None:
     missing = [key for key in keys if key not in obj or not obj[key]]
     if missing:
         raise ValueError(f"Missing required fields: {', '.join(missing)}")
-enc = tiktoken.encoding_for_model("gpt-4o")
-__dirname = os.path.dirname(os.path.abspath(__file__))
-static_folder = __dirname
-def get_static_file(file_name: str) -> str:
-    """
-    Returns the contents of a file in the static folder
 
-    Parameters:
-        file_name (str): Name of the file to read
 
-    Returns:
-        (str): Contents of static/{file_name}
-    """
-    file_path = os.path.join(static_folder, file_name)
-
-    return file_path
-
-def file_search(query: str):
-    """
-    Searches the knowledge base for a given query.
-
-    Args:
-        query (str): The query to search for in the knowledge base.
-
-    Returns:
-        str: The results of the search query.
-    """
-    docs = retriever.invoke(query)
-    result = ""
-    for i in docs:
-        result = result + i.page_content + "\n\n----------------------------------\n\n"
-    return result
-
+def update_knowlege(context, client, file_path,assistant_file_path):  
+    hash_file = file_path + '.hash'
+    with open(file_path, 'rb') as f:
+        current_hash = hashlib.md5(f.read()).hexdigest()
+    stored_hash = ''
+    if os.path.exists(hash_file):
+        with open(hash_file, 'r') as f:
+            stored_hash = f.read().strip()
+    if current_hash != stored_hash:
+        context.log("The knowledge.md file has changed, Updating...")    
+        with open(assistant_file_path, 'r') as file:
+            assistant_data = json.load(file)
+            vector_store_id = assistant_data['vector_store_id']
+            
+            if stored_hash != '':
+                file_id = assistant_data["file_id"]
+                client.files.delete(file_id)
+            
+            file = client.files.create(
+                file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
+                purpose='assistants',
+            )
+            client.beta.vector_stores.files.create(
+                vector_store_id=vector_store_id,
+                file_id=file.id
+            )
+            vector_store = client.beta.vector_stores.retrieve(
+                vector_store_id=vector_store_id
+            )
+            assistant_data['file_id'] =file.id
+            with open(assistant_file_path, 'w') as file:
+                json.dump(assistant_data, file)
+            with open(hash_file, 'w') as f:
+                f.write(current_hash)
+            context.log("knowledge base has been updated")
+    else:
+        context.log("file has not changed")
 
 def email_supervisor(context,summary):
     """
@@ -123,28 +143,17 @@ def capture_info(context,id: str,name: str , email :str, phone: str, notes: str)
         return "Failed to capture info, appologize to the customer and file a complain to the supervisor"
 
 
-
+def supa_threads(messenger_id):
+    data=supa_client.table('leads').select('thread_id').eq('messenger_id',messenger_id).execute()
+    if not data.data == []:
+        return data.data[0]['thread_id']
+    else:
+        return None
 
 
 tools=[{
-        "type": "function",  # This adds the solar calculator as a tool
-        "function": {
-            "name": "file_search",
-            "description":
-            "Searches the knowledge base for a given query, use this tool with plain english question when you need information about to respond to the user",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type":
-                        "string",
-                        "description":
-                        "The query to search for in the knowledge base"
-                    },
-                },
-                "required": ["query"]
-            }
-        }
+        "type": "file_search",  # This adds the solar calculator as a tool
+
     },
     {
         "type": "function",  # This adds the solar calculator as a tool
@@ -198,10 +207,118 @@ tools=[{
     }
 ]
 
-def setup_env(context):
-    context.log("setup started")
-    global MODEL, prompt, embeddings, supa_client, db, retriever, tools, client, Client
+def create_assistant(context,client,assistant_file_path):
 
+
+  # If there is an assistant.json file already, then load that assistant
+  if os.path.exists(assistant_file_path):
+    with open(assistant_file_path, 'r') as file:
+        assistant_data = json.load(file)
+        assistant_id = assistant_data['assistant_id']
+        try:
+            client.beta.assistants.retrieve(assistant_id)
+            context.log("Loaded existing assistant ID.")
+            return assistant_id
+        except Exception as e:
+            context.log(f"Error loading assistant ID: {e}")
+
+  else:
+    file = client.files.create(file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
+                               purpose='assistants',
+                               embedding_model='embed-english-v3.0')
+    vector_store = client.beta.vector_stores.create(
+            name="knowledge",
+            file_ids=[file.id]
+            )
+    assistant = client.beta.assistants.create(
+        name="Adam",
+        instructions=prompt,
+        temperature = 0.3,
+        model=model,
+        tools=tools,
+        tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
+        )
+
+    # Create a new assistant.json file to load on future runs
+    with open(assistant_file_path, 'w') as f:
+      json.dump({'assistant_id': assistant.id,'vector_store_id':vector_store.id,'file_id':file.id}, f)
+      context.log("Created a new assistant and saved the ID.")
+
+    assistant_id = assistant.id
+
+  return assistant_id
+
+
+
+def response(context,messenger_id,user_input):
+    assistant_id = create_assistant(context,client,assistant_path)
+    
+    if supa_threads(messenger_id):
+        thread_id = supa_threads(messenger_id)
+        context.log("previous thread found and loaded")
+    else:
+        thread = client.beta.threads.create()
+        thread_id =thread.id
+        supa_client.table('leads').insert({'messenger_id':messenger_id,'thread_id': thread_id}).execute()
+        context.log("id has been saved")
+   
+    client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=user_input
+    )
+
+    
+    while True:
+        run = client.beta.threads.runs.create_and_poll(thread_id=thread_id, assistant_id=assistant_id)
+        if run.status == 'completed':
+            break
+        elif run.status == 'requires_action':
+            context.log("using an action")
+        # Handle the function call
+            for tool_call in run.required_action.submit_tool_outputs.tool_calls:
+                if tool_call.function.name == "email_supervisor":
+                    context.log("trying to email_supervisor")
+                    arguments = json.loads(tool_call.function.arguments)
+                    output = email_supervisor(context, arguments["summary"])
+                    try:
+                        client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
+                                                                    run_id=run.id,
+                                                                    tool_outputs=[{
+                                                                        "tool_call_id":tool_call.id,
+                                                                        "output":json.dumps(output)
+                                                                    }])
+                        context.log("action succeeded")
+                    except Exception as e:
+                        context.log(f"failed to submit tool: {e}")
+                elif tool_call.function.name == "capture_info":
+                    context.log("trying to capture_info")
+                    arguments = json.loads(tool_call.function.arguments)
+                    output = capture_info(messenger_id=messenger_id, name=arguments["name"],phone=arguments["phone"],email=arguments["email"],notes=arguments["notes"])
+                    try:
+                        client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
+                                                                    run_id=run.id,
+                                                                    tool_outputs=[{
+                                                                        "tool_call_id":tool_call.id,
+                                                                        "output":json.dumps(output)
+                                                                    }])
+                        context.log("action succeeded")
+                    except Exception as e:
+                        context.log(f"failed to submit tool: {e}")
+        else:
+            context.log(run.status)
+        time.sleep(0.5)  # Wait for a second before checking again
+
+    # Retrieve and return the latest message from the assistant
+    messages = client.beta.threads.messages.list(thread_id=thread_id)
+    response = messages.data[0].content[0].text.value
+
+    context.log(f"Assistant response: {response}")
+    return response
+
+
+
+def main(context):
     throw_if_missing(
         os.environ,
         [
@@ -213,123 +330,7 @@ def setup_env(context):
             "SENDER_PASSWORD"
         ],
     )
-    
-    embeddings = CohereEmbeddings( 
-        cohere_api_key=os.getenv("COHERE_API_KEY"),
-        model="embed-english-v3.0",
-    )
-    url: str = os.environ.get("SUPABASE_URL")
-    key: str = os.environ.get("SUPABASE_KEY")
-    supa_client= create_client(url, key)
-    Client = chromadb.Client()
-    client = Groq(
-        api_key=os.environ.get("GROQ_API_KEY")
-    )
-    
-    
-    MODEL = "llama3-groq-70b-8192-tool-use-preview"
-    prompt_path = get_static_file("prompt.txt")
-    knowledge_path = get_static_file("knowledge.md")
-    db_dir = get_static_file("knowledge")
-    with open(prompt_path, 'r', encoding='utf-8') as f:
-        prompt = f.read()
-
-    if os.path.exists(db_dir):
-        context.log('DB exists')
-    else:
-        with open(knowledge_path, 'r', encoding='utf-8') as f:
-            file = f.read()
-        docs = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=400).split_text(file)
-        Chroma.from_texts(docs, embeddings, persist_directory=db_dir) 
-        context.log("DB created")
-
-    db = Chroma(persist_directory=db_dir, embedding_function=embeddings)
-    retriever = db.as_retriever(search_type="similarity", search_kwargs={"k": 3})
-    context.log('retriever ready')
-    
-
-
-
-
-def chat_history(context, messenger_id) -> list:
-    data=supa_client.table('leads').select('chat_history').eq('messenger_id',messenger_id).execute()
-    if not data.data == [] and data.data[0]['chat_history']:
-        chat_history = json.loads(data.data[0]['chat_history'])
-        tokens = enc.encode(data.data[0]['chat_history'])
-        while len(tokens) > 7500:
-            chat_history.pop(1)
-            tokens = enc.encode(json.dumps(chat_history))
-            context.log("previous chat history shortened")
-        context.log("previous chat history loaded")
-        return chat_history
-    else:
-        supa_client.table('leads').insert({'messenger_id':messenger_id,'chat_history':"[]"}).execute()
-        context.log("New id has been saved")
-        return [{"role": "system", "content": prompt}]
-
-
-
-def response(context,messenger_id,input)->str:
-
-    convo = chat_history(context,messenger_id)
-    convo.append({"role": "user", "content": input})
-    response = client.chat.completions.create(
-        model=MODEL, # LLM to use
-        messages=convo, # Conversation history
-        stream=False,
-        tools=tools, # Available tools (i.e. functions) for our LLM to use
-        tool_choice="auto", # Let our LLM decide when to use tools
-        temperature=0.3 # Maximum number of tokens to allow in our response
-    )
-    response_message = response.choices[0].message
-    tool_calls = response_message.tool_calls
-    if tool_calls:
-        context.log("tool needed")
-        convo.append(response_message)
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            function_args = json.loads(tool_call.function.arguments)
-            if function_name == "capture_info":
-                context.log(f"trying to call capture_info with {function_args}")
-                function_response = capture_info(context,id=messenger_id,name=function_args["name"], email=function_args["email"], phone=function_args["phone"], notes=function_args["notes"])
-            elif function_name == "email_supervisor":
-                context.log(f"trying to call email_supervisor with {function_args}")
-                function_response = email_supervisor(context,summary=function_args["summary"])
-            else:
-                context.log(f"trying to call file_search with {function_args}")
-                function_response = file_search(
-                    function_args["query"]
-                )
-            # Add the tool response to the conversation
-            convo.append(
-                {
-                    "tool_call_id": tool_call.id, 
-                    "role": "tool", # Indicates this message is from tool use
-                    "name": function_name,
-                    "content": function_response,
-                }
-            )
-        # Make a second API call with the updated conversation
-        second_response = client.chat.completions.create(
-            model=MODEL, # LLM to use
-            messages=convo, # Conversation history
-            stream=False,
-            tools=tools, # Available tools (i.e. functions) for our LLM to use
-            tool_choice="auto", # Let our LLM decide when to use tools
-            temperature=0.3 # Maximum number of tokens to allow in our response
-        )
-        # Return the final response
-        return second_response.choices[0].message.content
-
-    convo.append({"role": "assistant", "content": response_message.content})
-    supa_client.table('leads').update({'chat_history': json.dumps(convo)}).eq('messenger_id',messenger_id).execute()
-    return response_message.content
-
-
-
-
-def main(context):
-    setup_env(context)
+    update_knowlege(context,client,knowledge_path,assistant_path)
     data = json.loads(context.req.body_raw)
     messenger_id = data.get('messenger_id')
     user_input = data.get('message', '')
@@ -342,7 +343,6 @@ def main(context):
         return context.error("error", "Missing a message")
     else:
         context.log(f"Received message: ({user_input}) for thread ID: ({messenger_id})")
-
     assistant_response = response(context, messenger_id, user_input)
     context.log(f"assistant responded: {assistant_response}")
     return context.res.json({"assistant_response": assistant_response})
