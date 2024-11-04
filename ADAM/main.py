@@ -15,7 +15,7 @@ url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supa_client= create_client(url, key)
 client = OpenAI(
-    api_key=os.environ.get("GROQ_API_KEY")
+    api_key=os.environ.get("OPENAI_API_KEY")
 )
 
 assistant_path=os.path.join(static_folder,"assistant.json")
@@ -320,7 +320,7 @@ def main(context):
     throw_if_missing(
         os.environ,
         [
-            "GROQ_API_KEY",
+            "OPENAI_API_KEY",
             "SUPABASE_URL",
             "SUPABASE_KEY",
             "COHERE_API_KEY",
