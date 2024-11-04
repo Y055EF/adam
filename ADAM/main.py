@@ -223,31 +223,31 @@ def create_assistant(context,client,assistant_file_path):
             except Exception as e:
                 context.log(f"Error loading assistant ID: {e}")
 
-  else:
-    file = client.files.create(file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
-                               purpose='assistants',
-                               embedding_model='embed-english-v3.0')
-    vector_store = client.beta.vector_stores.create(
-            name="knowledge",
-            file_ids=[file.id]
-            )
-    assistant = client.beta.assistants.create(
-        name="Adam",
-        instructions=prompt,
-        temperature = 0.3,
-        model=model,
-        tools=tools,
-        tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
-        )
-
-    # Create a new assistant.json file to load on future runs
-    with open(assistant_file_path, 'w') as f:
-      json.dump({'assistant_id': assistant.id,'vector_store_id':vector_store.id,'file_id':file.id}, f)
-      context.log("Created a new assistant and saved the ID.")
-
-    assistant_id = assistant.id
-
-  return assistant_id
+        else:
+            file = client.files.create(file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
+                                       purpose='assistants',
+                                       embedding_model='embed-english-v3.0')
+            vector_store = client.beta.vector_stores.create(
+                    name="knowledge",
+                    file_ids=[file.id]
+                    )
+            assistant = client.beta.assistants.create(
+                name="Adam",
+                instructions=prompt,
+                temperature = 0.3,
+                model=model,
+                tools=tools,
+                tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
+                )
+        
+            # Create a new assistant.json file to load on future runs
+            with open(assistant_file_path, 'w') as f:
+              json.dump({'assistant_id': assistant.id,'vector_store_id':vector_store.id,'file_id':file.id}, f)
+              context.log("Created a new assistant and saved the ID.")
+        
+            assistant_id = assistant.id
+        
+          return assistant_id
 
 
 
