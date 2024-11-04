@@ -214,13 +214,14 @@ def create_assistant(context,client,assistant_file_path):
   if os.path.exists(assistant_file_path):
     with open(assistant_file_path, 'r') as file:
         assistant_data = json.load(file)
-        assistant_id = assistant_data['assistant_id']
-        try:
-            client.beta.assistants.retrieve(assistant_id)
-            context.log("Loaded existing assistant ID.")
-            return assistant_id
-        except Exception as e:
-            context.log(f"Error loading assistant ID: {e}")
+        if assistant_data != {}:
+            assistant_id = assistant_data['assistant_id']
+            try:
+                client.beta.assistants.retrieve(assistant_id)
+                context.log("Loaded existing assistant ID.")
+                return assistant_id
+            except Exception as e:
+                context.log(f"Error loading assistant ID: {e}")
 
   else:
     file = client.files.create(file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
@@ -251,8 +252,6 @@ def create_assistant(context,client,assistant_file_path):
 
 
 def response(context,messenger_id,user_input,assistant_id):
-    assistant_id = create_assistant(context,client,assistant_path)
-    
     if supa_threads(messenger_id):
         thread_id = supa_threads(messenger_id)
         context.log("previous thread found and loaded")
