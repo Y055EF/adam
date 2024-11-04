@@ -247,7 +247,7 @@ def create_assistant(context,client,assistant_file_path):
         
             assistant_id = assistant.id
         
-          return assistant_id
+            return assistant_id
 
 
 
