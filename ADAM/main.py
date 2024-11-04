@@ -61,7 +61,7 @@ def update_knowlege(context, client, file_path,assistant_file_path):
                 client.files.delete(file_id)
             
             file = client.files.create(
-                file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
+                file=open(knowkedge_path, "rb"),
                 purpose='assistants',
             )
             client.beta.vector_stores.files.create(
@@ -224,9 +224,8 @@ def create_assistant(context,client,assistant_file_path):
                 context.log(f"Error loading assistant ID: {e}")
 
         else:
-            file = client.files.create(file=open("C:\\python projects\\astra-swarm\\ADAM\\knowledge.md", "rb"),
-                                       purpose='assistants',
-                                       embedding_model='embed-english-v3.0')
+            file = client.files.create(file=open(knowledge_path, "rb"),
+                                       purpose='assistants',)
             vector_store = client.beta.vector_stores.create(
                     name="knowledge",
                     file_ids=[file.id]
