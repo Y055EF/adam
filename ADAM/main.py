@@ -61,7 +61,7 @@ def update_knowlege(context, client, file_path,assistant_file_path):
                 client.files.delete(file_id)
             
             file = client.files.create(
-                file=open(knowkedge_path, "rb"),
+                file=open(knowledge_path, "rb"),
                 purpose='assistants',
             )
             client.beta.vector_stores.files.create(
