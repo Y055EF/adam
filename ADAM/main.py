@@ -74,7 +74,7 @@ def create_assistant(context,client,assistant_name):
         
 def update_knowlege(context, client, file_path,assistant_name):  
     hash_data = supa_client.table('assistants').select('hash').eq('name',assistant_name).execute()
-    if hash_data.data == []:
+    if not hash_data.data == []:
         stored_hash =  hash_data.data[0]['hash']
         context.log("stored_hash found")
     else:
