@@ -227,7 +227,7 @@ def setup_env(context):
     )
     
     
-    MODEL = "llama3-groq-70b-8192-tool-use-preview"
+    MODEL = "gpt-4o-mini-2024-07-18"
     prompt_path = get_static_file("prompt.txt")
     knowledge_path = get_static_file("knowledge.md")
     db_dir = get_static_file("knowledge")
