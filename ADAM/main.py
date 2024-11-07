@@ -76,8 +76,10 @@ def update_knowlege(context, client, file_path,assistant_name):
     hash_data = supa_client.table('assistants').select('hash').eq('name',assistant_name).execute()
     if hash_data.data == []:
         stored_hash =  hash_data.data[0]['hash']
+        context.log("stored_hash found")
     else:
         stored_hash = ''
+        context.log("stored_hash not found")
     with open(file_path, 'rb') as f:
         current_hash = hashlib.md5(f.read()).hexdigest()
 
@@ -100,7 +102,7 @@ def update_knowlege(context, client, file_path,assistant_name):
             file_id=file.id
         )
 
-        supa_client.table('assistants').update({'hash_file':current_hash}).eq('name',assistant_name).execute()
+        supa_client.table('assistants').update({'hash':current_hash}).eq('name',assistant_name).execute()
         supa_client.table('assistants').update({'file_id':file.id}).eq('name',assistant_name).execute()
         context.log("knowledge base has been updated")
     else:
