@@ -1,6 +1,0 @@
-openai
-langchain
-langchain-chroma
-langchain-cohere
-supabase
-tiktoken
