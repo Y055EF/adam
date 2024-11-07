@@ -50,7 +50,8 @@ def create_assistant(context,client,assistant_name):
     else:
         file = client.files.create(file=open(knowledge_path, "rb"),
                                     purpose='assistants',)
-        hash = hashlib.md5(f.read()).hexdigest()
+        with open(knowledge_path, 'rb') as f:
+            hash = hashlib.md5(f.read()).hexdigest()
         vector_store = client.beta.vector_stores.create(
                 name="knowledge",
                 file_ids=[file.id]
