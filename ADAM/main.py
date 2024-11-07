@@ -64,7 +64,7 @@ def create_assistant(context,client,assistant_name):
             tools=tools,
             tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}}
             )
-        supa_client.table('leads').insert({'name':assistant_name,'assistant_id': assistant.id,'vector_id': vector_store.id,'file_id': file.id,'hash': hash}).execute()
+        supa_client.table('assistants').insert({'name':assistant_name,'assistant_id': assistant.id,'vector_id': vector_store.id,'file_id': file.id,'hash': hash}).execute()
         # Create a new assistant.json file to load on future runs
 
 
