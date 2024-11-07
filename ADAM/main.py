@@ -174,7 +174,7 @@ def capture_info(context,id: str,name: str , email :str, phone: str, notes: str)
 def supa_threads(messenger_id):
     data=supa_client.table('leads').select('thread_id').eq('messenger_id',messenger_id).execute()
     if not data.data == []:
-        return data.data[0]['thread_id']
+        return data.data[-1]['thread_id']
     else:
         return None
 
@@ -257,7 +257,9 @@ def response(context,messenger_id,user_input,assistant_id):
 
     run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
     while True:
+        
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+        context.log(run.status)
         if run.status == 'completed':
             break
         elif run.status == 'requires_action':
