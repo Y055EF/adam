@@ -1,4 +1,4 @@
-groq
+openai
 langchain
 langchain-chroma
 langchain-cohere
