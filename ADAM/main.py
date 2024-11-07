@@ -255,9 +255,9 @@ def response(context,messenger_id,user_input,assistant_id):
         content=user_input
     )
 
-    
+    run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
     while True:
-        run = client.beta.threads.runs.create_and_poll(thread_id=thread_id, assistant_id=assistant_id)
+        run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
         if run.status == 'completed':
             break
         elif run.status == 'requires_action':
