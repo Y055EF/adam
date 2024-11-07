@@ -1,5 +1,5 @@
 import os
-from groq import Groq
+from openai import OpenAI
 import chromadb
 import json
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -222,8 +222,8 @@ def setup_env(context):
     key: str = os.environ.get("SUPABASE_KEY")
     supa_client= create_client(url, key)
     Client = chromadb.Client()
-    client = Groq(
-        api_key=os.environ.get("GROQ_API_KEY")
+    client = OpenAI(
+        api_key=os.environ.get("OPENAI_API_KEY")
     )
     
     
