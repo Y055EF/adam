@@ -239,43 +239,51 @@ tools=[{
 
 
 
-def response(context,messenger_id,user_input,assistant_id):
+
+def response(context,messenger_id, user_input, assistant_id):
     if supa_threads(messenger_id):
         thread_id = supa_threads(messenger_id)
         context.log("previous thread found and loaded")
     else:
         thread = client.beta.threads.create()
-        thread_id =thread.id
-        supa_client.table('leads').insert({'messenger_id':messenger_id,'thread_id': thread_id}).execute()
+        thread_id = thread.id
+        supa_client.table('leads').insert({'messenger_id': messenger_id, 'thread_id': thread_id}).execute()
         context.log("id has been saved")
-   
-    client.beta.threads.messages.create(
-        thread_id=thread_id,
-        role="user",
-        content=user_input
-    )
-
+    while True:
+        try:
+            client.beta.threads.messages.create(
+                thread_id=thread_id,
+                role="user",
+                content=user_input
+            )
+            break
+        except Exception as e:
+            error_message = str(e)
+            if "while a run" in error_message:
+                run_id = error_message.split("run ")[1].split(" ")[0]
+                context.log(f"cancelling run ID: {run_id}")
+                client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
+            time.sleep(1)
     run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
     while True:
-        
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
         context.log(run.status)
         if run.status == 'completed':
             break
         elif run.status == 'requires_action':
             context.log("using an action")
-        # Handle the function call
             for tool_call in run.required_action.submit_tool_outputs.tool_calls:
+                context.log(tool_call.function.name)
                 if tool_call.function.name == "email_supervisor":
                     context.log("trying to email_supervisor")
                     arguments = json.loads(tool_call.function.arguments)
-                    output = email_supervisor(context, arguments["summary"])
+                    output = email_supervisor(arguments["summary"])
                     try:
                         client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
                                                                     run_id=run.id,
                                                                     tool_outputs=[{
-                                                                        "tool_call_id":tool_call.id,
-                                                                        "output":json.dumps(output)
+                                                                        "tool_call_id": tool_call.id,
+                                                                        "output": json.dumps(output)
                                                                     }])
                         context.log("action succeeded")
                     except Exception as e:
@@ -283,28 +291,28 @@ def response(context,messenger_id,user_input,assistant_id):
                 elif tool_call.function.name == "capture_info":
                     context.log("trying to capture_info")
                     arguments = json.loads(tool_call.function.arguments)
-                    output = capture_info(messenger_id=messenger_id, name=arguments["name"],phone=arguments["phone"],email=arguments["email"],notes=arguments["notes"])
+                    output = capture_info(messenger_id=messenger_id, name=arguments["name"], phone=arguments["phone"], email=arguments["email"], notes=arguments["notes"])
                     try:
                         client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
                                                                     run_id=run.id,
                                                                     tool_outputs=[{
-                                                                        "tool_call_id":tool_call.id,
-                                                                        "output":json.dumps(output)
+                                                                        "tool_call_id": tool_call.id,
+                                                                        "output": json.dumps(output)
                                                                     }])
                         context.log("action succeeded")
                     except Exception as e:
                         context.log(f"failed to submit tool: {e}")
+                else:
+                    context.log("file search action")
         else:
             context.log(run.status)
-        time.sleep(0.5)  # Wait for a second before checking again
+        time.sleep(0.5)
 
-    # Retrieve and return the latest message from the assistant
     messages = client.beta.threads.messages.list(thread_id=thread_id)
     response = messages.data[0].content[0].text.value
 
     context.log(f"Assistant response: {response}")
     return response
-
 
 
 def main(context):
