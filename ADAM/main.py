@@ -259,7 +259,7 @@ def response(context,messenger_id, user_input, assistant_id):
             break
         except Exception as e:
             error_message = str(e)
-            if "while a run" in error_message:
+            if "run" in error_message:
                 run_id = error_message.split("run ")[1].split(" ")[0]
                 context.log(f"cancelling run ID: {run_id}")
                 client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
