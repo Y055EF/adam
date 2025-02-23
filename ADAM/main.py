@@ -266,7 +266,7 @@ def response(context,messenger_id, user_input, assistant_id):
                     client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
                 except Exception as e:
                     context.log(e)
-            time.sleep(1)
+            time.sleep(5)
     run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
     while True:
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
@@ -309,7 +309,7 @@ def response(context,messenger_id, user_input, assistant_id):
                     context.log("file search action")
         else:
             context.log(run.status)
-        time.sleep(0.5)
+        time.sleep(5)
 
     messages = client.beta.threads.messages.list(thread_id=thread_id)
     response = messages.data[0].content[0].text.value
