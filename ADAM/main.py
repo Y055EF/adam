@@ -262,7 +262,10 @@ def response(context,messenger_id, user_input, assistant_id):
             if "run" in error_message:
                 run_id = error_message.split("run ")[1].split(" ")[0]
                 context.log(f"cancelling run ID: {run_id}")
-                client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
+                try:
+                    client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
+                except Exception as e:
+                    context.log(e)
             time.sleep(1)
     run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
     while True:
